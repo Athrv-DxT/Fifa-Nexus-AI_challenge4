@@ -129,6 +129,7 @@ The tests cover:
 
 ## Deployment Guide
 
+### Local Host Deployment
 To deploy the application locally:
 
 ```bash
@@ -144,3 +145,28 @@ npm run build
 # Preview the local production bundle
 npm run preview
 ```
+
+### Vercel Production Deployment
+The project is pre-configured for Vercel deployment with vercel.json.
+- Runs SPA redirects so all deep paths route correctly to index.html.
+- Applies strict Content Security Policy (CSP), HSTS, and XSS headers.
+- Caches all static build assets permanently under /assets/*.
+To deploy:
+- Install the Vercel CLI: `npm install -g vercel`
+- Run `vercel` in the repository root and follow the prompts.
+
+### Netlify Production Deployment
+The project is configured for Netlify using netlify.toml.
+- Builds statically with `npm run build` and publishes the `dist` folder.
+- Configures SPA fallbacks using redirects.
+- Injects CSP, caching, and frame headers.
+To deploy:
+- Connect the repository to Netlify, or deploy via CLI using `netlify deploy`.
+
+---
+
+## Observability and Graceful Degradation
+
+- Error Boundary Interface: The root application is wrapped in a React Error Boundary (src/shared/components/ErrorBoundary.tsx). In the event of a runtime rendering crash, the exception is intercepted, logged to the central store, and the user is presented with a safe recovery panel instead of a white screen or stack trace leakage.
+- Network Connectivity watchdog: App.tsx listens to online/offline state changes in the browser. It displays a real-time status badge and writes connection status changes to the audit log trail.
+- API Key Validation: In client.ts, the client validates VITE_GEMINI_API_KEY before executing live prompts. If it fails, the application degrades gracefully to offline rule-based fallback responses.

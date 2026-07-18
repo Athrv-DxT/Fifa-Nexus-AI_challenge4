@@ -4,14 +4,26 @@ import { useSimulationStore } from './simulation/store';
 import { usePreferencesStore } from './shared/hooks/usePreferences';
 import { translations } from './config/i18n';
 import type { SupportedLanguage } from './config/i18n';
-import { FanDashboard } from './features/fan/FanDashboard';
-import { VolunteerDashboard } from './features/volunteer/VolunteerDashboard';
-import { OperationsDashboard } from './features/operations/OperationsDashboard';
-import { ExecutiveDashboard } from './features/executive/ExecutiveDashboard';
-import { DiagnosticsDashboard } from './features/diagnostics/DiagnosticsDashboard';
 import { Button } from './shared/components/Button';
 import { checkPermissions, secureLogger } from './shared/utils/security';
 import type { UserRole } from './shared/utils/security';
+
+// Lazy load dashboard components for build optimization and code splitting
+const FanDashboard = React.lazy(() =>
+  import('./features/fan/FanDashboard').then((m) => ({ default: m.FanDashboard }))
+);
+const VolunteerDashboard = React.lazy(() =>
+  import('./features/volunteer/VolunteerDashboard').then((m) => ({ default: m.VolunteerDashboard }))
+);
+const OperationsDashboard = React.lazy(() =>
+  import('./features/operations/OperationsDashboard').then((m) => ({ default: m.OperationsDashboard }))
+);
+const ExecutiveDashboard = React.lazy(() =>
+  import('./features/executive/ExecutiveDashboard').then((m) => ({ default: m.ExecutiveDashboard }))
+);
+const DiagnosticsDashboard = React.lazy(() =>
+  import('./features/diagnostics/DiagnosticsDashboard').then((m) => ({ default: m.DiagnosticsDashboard }))
+);
 
 function App() {
   const { state, tick, isPlaying, playSpeed, setActiveStadium } = useSimulationStore();
@@ -20,6 +32,9 @@ function App() {
 
   // Active View Tab State
   const [activeTab, setActiveTab] = React.useState<'fan' | 'volunteer' | 'operations' | 'executive' | 'diagnostics'>('operations');
+  
+  // Local network online/offline status
+  const [isOnline, setIsOnline] = React.useState(navigator.onLine);
 
   // Simulation Clock Auto-Ticking Effect
   useEffect(() => {
@@ -33,6 +48,26 @@ function App() {
       if (timer) clearInterval(timer);
     };
   }, [isPlaying, playSpeed, tick]);
+
+  // Network connection status listeners
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      secureLogger.info('simulation', 'Network connection restored. Device is online.');
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      secureLogger.warning('simulation', 'Network connection lost. Device is offline.');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setLanguage(e.target.value as SupportedLanguage);
@@ -99,8 +134,16 @@ function App() {
         {/* Global Toolbar Controls */}
         <div className="flex flex-wrap items-center gap-4 text-xs">
           
+          {/* Connection Status Badge */}
+          <div className="flex items-center gap-1.5 pr-2">
+            <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+            <span className="text-[9px] uppercase font-mono tracking-widest text-slate-400">
+              {isOnline ? 'ONLINE' : 'OFFLINE'}
+            </span>
+          </div>
+
           {/* Active Stadium Switcher */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 border-l border-brand-dark-700 pl-3">
             <label htmlFor="global-venue-select" className="text-slate-400 font-semibold text-[10px] uppercase">
               Venue
             </label>
@@ -119,7 +162,7 @@ function App() {
           </div>
 
           {/* Multilingual Selector */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 border-l border-brand-dark-700 pl-3">
             <Languages size={14} className="text-slate-400" />
             <select
               id="global-lang-select"
@@ -281,13 +324,20 @@ function App() {
               </Button>
             </div>
           ) : (
-            <>
+            <React.Suspense fallback={
+              <div className="flex flex-col items-center justify-center p-12 space-y-4">
+                <div className="w-8 h-8 border-4 border-brand-blue-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs font-mono text-slate-400 uppercase tracking-widest">
+                  Loading Control Deck...
+                </span>
+              </div>
+            }>
               {activeTab === 'fan' && <FanDashboard />}
               {activeTab === 'volunteer' && <VolunteerDashboard />}
               {activeTab === 'operations' && <OperationsDashboard />}
               {activeTab === 'executive' && <ExecutiveDashboard />}
               {activeTab === 'diagnostics' && <DiagnosticsDashboard />}
-            </>
+            </React.Suspense>
           )}
         </main>
       </div>

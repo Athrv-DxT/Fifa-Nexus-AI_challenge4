@@ -8,7 +8,7 @@ interface TwinProps {
   selectedSector: string | null;
 }
 
-export const StadiumDigitalTwin: React.FC<TwinProps> = ({
+export const StadiumDigitalTwin = React.memo<TwinProps>(({
   onSectorSelect,
   selectedSector
 }) => {
@@ -250,4 +250,4 @@ export const StadiumDigitalTwin: React.FC<TwinProps> = ({
       </div>
     </div>
   );
-};
+});
