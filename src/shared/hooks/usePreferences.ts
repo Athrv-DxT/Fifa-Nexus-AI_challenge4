@@ -1,15 +1,18 @@
 import { create } from 'zustand';
 import type { SupportedLanguage } from '../../config/i18n';
+import type { UserRole } from '../utils/security';
 
 interface PreferencesState {
   language: SupportedLanguage;
   highContrast: boolean;
   largeFont: boolean;
   reducedMotion: boolean;
+  userRole: UserRole;
   setLanguage: (lang: SupportedLanguage) => void;
   toggleHighContrast: () => void;
   toggleLargeFont: () => void;
   toggleReducedMotion: () => void;
+  setUserRole: (role: UserRole) => void;
 }
 
 export const usePreferencesStore = create<PreferencesState>((set) => ({
@@ -17,6 +20,7 @@ export const usePreferencesStore = create<PreferencesState>((set) => ({
   highContrast: false,
   largeFont: false,
   reducedMotion: false,
+  userRole: 'Operations',
 
   setLanguage: (lang) => {
     set({ language: lang });
@@ -59,5 +63,9 @@ export const usePreferencesStore = create<PreferencesState>((set) => ({
       const active = !state.reducedMotion;
       return { reducedMotion: active };
     });
+  },
+
+  setUserRole: (role) => {
+    set({ userRole: role });
   }
 }));

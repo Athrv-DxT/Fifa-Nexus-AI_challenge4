@@ -1,37 +1,14 @@
 import { z } from 'zod';
 import { useSimulationStore } from '../simulation/store';
 import * as schemas from './schemas';
-
-// Common jailbreak or prompt injection detection patterns
-const INJECTION_PATTERNS = [
-  /ignore\s+(?:all\s+)?prior\s+instructions/gi,
-  /bypass\s+safety/gi,
-  /you\s+are\s+now\s+an\s+unrestricted/gi,
-  /system\s+override/gi,
-  /developer\s+mode/gi,
-  /<script>/gi,
-  /javascript:/gi,
-  /override\s+rules/gi
-];
-
-/**
- * Checks for prompt injection indicators in user input.
- */
-export function scanPromptInjection(input: string): boolean {
-  return INJECTION_PATTERNS.some(pattern => pattern.test(input));
-}
-
-/**
- * Clean user input to prevent basic XSS or styling breakages.
- */
-export function sanitizeInput(input: string): string {
-  return input
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;');
-}
+import {
+  sanitizeInput,
+  sanitizeObject,
+  validatePrompt,
+  rateLimiter,
+  validateEnvironment,
+  secureLogger
+} from '../shared/utils/security';
 
 /**
  * Generates local rule-based deterministic responses based on simulation telemetry.
@@ -315,12 +292,51 @@ export async function invokeAIAgent(
 ): Promise<any> {
   const store = useSimulationStore.getState();
 
-  // 1. Audit log the input receipt
+  // 1. Validate Environment Variables
+  try {
+    validateEnvironment();
+  } catch (envErr: any) {
+    store.addLog('security', 'error', `[Configuration Block] ${envErr.message}`);
+    return {
+      reasoningSummary: "Environment validation failed.",
+      confidenceScore: 0.0,
+      isFallback: true,
+      timestamp: new Date().toISOString(),
+      response: "Configuration Error: The system is misconfigured.",
+      instructions: "Please report this issue to stadium operations.",
+      alertHeadline: "CONFIGURATION ERROR",
+      evacuationDirections: [],
+      safetyProtocols: [],
+      routeDescription: "N/A",
+      routeSteps: []
+    };
+  }
+
+  // 2. Enforce Rate Limiting
+  if (!rateLimiter('global-client')) {
+    secureLogger.security(`Rate limit exceeded for client query.`);
+    return {
+      reasoningSummary: "Rate limiter blocked request to prevent resource flooding.",
+      confidenceScore: 0.0,
+      isFallback: true,
+      timestamp: new Date().toISOString(),
+      response: "Too many requests. Please wait a moment before trying again.",
+      instructions: "Rate limit restriction is active.",
+      alertHeadline: "RATE LIMIT ACTIVE",
+      evacuationDirections: [],
+      safetyProtocols: [],
+      routeDescription: "N/A",
+      routeSteps: []
+    };
+  }
+
+  // 3. Audit log the input receipt
   store.addLog('ai', 'audit', `[AI Request] Invoking ${agentName} (Lang: ${lang}) | Input: "${userInput.slice(0, 50)}..."`);
 
-  // 2. Validate input for Prompt Injection
-  if (scanPromptInjection(userInput)) {
-    store.addLog('security', 'error', `[Security Block] Prompt Injection attempt detected in query: "${userInput}"`);
+  // 4. Validate input for Prompt Injection
+  const promptCheck = validatePrompt(userInput);
+  if (!promptCheck.valid) {
+    secureLogger.security(`Prompt Injection attempt detected in query: "${userInput}". Reason: ${promptCheck.reason}`);
     return {
       reasoningSummary: "Jailbreak Filter flagged input as dangerous. Blocked execution.",
       confidenceScore: 0.0,
@@ -349,14 +365,14 @@ export async function invokeAIAgent(
   else if (agentName === 'Emergency Response Advisor') schema = schemas.EmergencyAdvisorSchema;
   else if (agentName === 'Crowd Prediction Assistant') schema = schemas.CrowdPredictionSchema;
 
-  // 3. Fallback logic: If no API key, execute deterministic mock response directly
+  // 5. Fallback logic: If no API key, execute deterministic mock response directly
   if (!apiKey) {
     const mockRes = generateDeterministicMockResponse(agentName, cleanInput, lang);
     store.addLog('ai', 'info', `[AI Fallback] ${agentName} returned deterministic mock response.`);
-    return schema.parse(mockRes);
+    return sanitizeObject(schema.parse(mockRes));
   }
 
-  // 4. Gemini API Call
+  // 6. Gemini API Call
   try {
     const systemPrompt = `You are the ${agentName} agent for the FIFA World Cup 2026 Tournament Operations.
     Your output MUST be a valid JSON object matching this schema specification.
@@ -404,7 +420,7 @@ export async function invokeAIAgent(
     });
 
     store.addLog('ai', 'info', `[AI Success] ${agentName} answered successfully using Gemini Live.`);
-    return parsedData;
+    return sanitizeObject(parsedData);
 
   } catch (err: any) {
     // If anything fails (network error, invalid json, schema mismatch), degrade to mock response
@@ -414,6 +430,6 @@ export async function invokeAIAgent(
       `[AI Degradation] Gemini request failed or invalid JSON returned. Error: ${err.message}. Degrading to rule-based fallback.`
     );
     const fallbackRes = generateDeterministicMockResponse(agentName, cleanInput, lang);
-    return schema.parse(fallbackRes);
+    return sanitizeObject(schema.parse(fallbackRes));
   }
 }

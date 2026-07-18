@@ -10,10 +10,12 @@ import { OperationsDashboard } from './features/operations/OperationsDashboard';
 import { ExecutiveDashboard } from './features/executive/ExecutiveDashboard';
 import { DiagnosticsDashboard } from './features/diagnostics/DiagnosticsDashboard';
 import { Button } from './shared/components/Button';
+import { checkPermissions, secureLogger } from './shared/utils/security';
+import type { UserRole } from './shared/utils/security';
 
 function App() {
   const { state, tick, isPlaying, playSpeed, setActiveStadium } = useSimulationStore();
-  const { language, setLanguage, highContrast, toggleHighContrast, toggleLargeFont } = usePreferencesStore();
+  const { language, setLanguage, highContrast, toggleHighContrast, toggleLargeFont, userRole, setUserRole } = usePreferencesStore();
   const t = translations[language];
 
   // Active View Tab State
@@ -34,6 +36,34 @@ function App() {
 
   const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setLanguage(e.target.value as SupportedLanguage);
+  };
+
+  const handleRoleChange = (newRole: UserRole) => {
+    setUserRole(newRole);
+    secureLogger.info('user', `Role changed from ${userRole} to ${newRole}`);
+    
+    const defaultTabMap: Record<UserRole, 'fan' | 'volunteer' | 'operations' | 'executive'> = {
+      Fan: 'fan',
+      Volunteer: 'volunteer',
+      Operations: 'operations',
+      Executive: 'executive'
+    };
+    
+    if (!checkPermissions(newRole, activeTab)) {
+      const fallbackTab = defaultTabMap[newRole];
+      setActiveTab(fallbackTab);
+      secureLogger.warning('security', `Redirected from protected view '${activeTab}' to '${fallbackTab}' due to role change`);
+    }
+  };
+
+  const handleTabSwitch = (tab: 'fan' | 'volunteer' | 'operations' | 'executive' | 'diagnostics') => {
+    if (checkPermissions(userRole, tab)) {
+      setActiveTab(tab);
+      secureLogger.info('user', `Navigated to tab: ${tab}`);
+    } else {
+      secureLogger.security(`Unauthorized navigation attempt to tab: ${tab} by role: ${userRole}`);
+      alert(`Access Denied: Your role (${userRole}) is not authorized to access this view.`);
+    }
   };
 
   return (
@@ -107,6 +137,24 @@ function App() {
             </select>
           </div>
 
+          {/* Role Selector Dropdown */}
+          <div className="flex items-center gap-1.5 border-l border-brand-dark-700 pl-3">
+            <label htmlFor="global-role-select" className="text-slate-400 font-semibold text-[10px] uppercase">
+              Role
+            </label>
+            <select
+              id="global-role-select"
+              value={userRole}
+              onChange={(e) => handleRoleChange(e.target.value as UserRole)}
+              className="bg-brand-dark-950 border border-brand-dark-700 rounded px-2.5 py-1 text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-blue-500 font-mono text-[11px]"
+            >
+              <option value="Fan">Fan</option>
+              <option value="Volunteer">Volunteer</option>
+              <option value="Operations">Operations</option>
+              <option value="Executive">Executive</option>
+            </select>
+          </div>
+
           {/* Accessibility Quick Panel */}
           <div className="flex items-center gap-1 border-l border-brand-dark-700 pl-3">
             <Button
@@ -140,81 +188,107 @@ function App() {
           aria-label="Operations Personas Switcher"
           className="w-full md:w-[240px] border-r border-brand-dark-700 bg-brand-dark-900/60 p-3 flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-x-visible shrink-0"
         >
-          <button
-            onClick={() => setActiveTab('fan')}
-            aria-current={activeTab === 'fan' ? 'page' : undefined}
-            className={`flex items-center gap-2 px-3.5 py-2.5 rounded text-left text-xs font-semibold w-full transition-all focus:outline-none focus:ring-1 focus:ring-brand-blue-500 ${
-              activeTab === 'fan'
-                ? 'bg-brand-dark-800 text-brand-blue-500 border-l-2 border-l-brand-blue-500'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-brand-dark-800/40'
-            }`}
-          >
-            <Calendar size={14} />
-            <span>{t.nav.fan}</span>
-          </button>
+          {checkPermissions(userRole, 'fan') && (
+            <button
+              onClick={() => handleTabSwitch('fan')}
+              aria-current={activeTab === 'fan' ? 'page' : undefined}
+              className={`flex items-center gap-2 px-3.5 py-2.5 rounded text-left text-xs font-semibold w-full transition-all focus:outline-none focus:ring-1 focus:ring-brand-blue-500 ${
+                activeTab === 'fan'
+                  ? 'bg-brand-dark-800 text-brand-blue-500 border-l-2 border-l-brand-blue-500'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-brand-dark-800/40'
+              }`}
+            >
+              <Calendar size={14} />
+              <span>{t.nav.fan}</span>
+            </button>
+          )}
           
-          <button
-            onClick={() => setActiveTab('volunteer')}
-            aria-current={activeTab === 'volunteer' ? 'page' : undefined}
-            className={`flex items-center gap-2 px-3.5 py-2.5 rounded text-left text-xs font-semibold w-full transition-all focus:outline-none focus:ring-1 focus:ring-brand-blue-500 ${
-              activeTab === 'volunteer'
-                ? 'bg-brand-dark-800 text-brand-blue-500 border-l-2 border-l-brand-blue-500'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-brand-dark-800/40'
-            }`}
-          >
-            <Users size={14} />
-            <span>{t.nav.volunteer}</span>
-          </button>
+          {checkPermissions(userRole, 'volunteer') && (
+            <button
+              onClick={() => handleTabSwitch('volunteer')}
+              aria-current={activeTab === 'volunteer' ? 'page' : undefined}
+              className={`flex items-center gap-2 px-3.5 py-2.5 rounded text-left text-xs font-semibold w-full transition-all focus:outline-none focus:ring-1 focus:ring-brand-blue-500 ${
+                activeTab === 'volunteer'
+                  ? 'bg-brand-dark-800 text-brand-blue-500 border-l-2 border-l-brand-blue-500'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-brand-dark-800/40'
+              }`}
+            >
+              <Users size={14} />
+              <span>{t.nav.volunteer}</span>
+            </button>
+          )}
 
-          <button
-            onClick={() => setActiveTab('operations')}
-            aria-current={activeTab === 'operations' ? 'page' : undefined}
-            className={`flex items-center gap-2 px-3.5 py-2.5 rounded text-left text-xs font-semibold w-full transition-all focus:outline-none focus:ring-1 focus:ring-brand-blue-500 ${
-              activeTab === 'operations'
-                ? 'bg-brand-dark-800 text-brand-blue-500 border-l-2 border-l-brand-blue-500'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-brand-dark-800/40'
-            }`}
-          >
-            <Activity size={14} />
-            <span>{t.nav.operations}</span>
-          </button>
+          {checkPermissions(userRole, 'operations') && (
+            <button
+              onClick={() => handleTabSwitch('operations')}
+              aria-current={activeTab === 'operations' ? 'page' : undefined}
+              className={`flex items-center gap-2 px-3.5 py-2.5 rounded text-left text-xs font-semibold w-full transition-all focus:outline-none focus:ring-1 focus:ring-brand-blue-500 ${
+                activeTab === 'operations'
+                  ? 'bg-brand-dark-800 text-brand-blue-500 border-l-2 border-l-brand-blue-500'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-brand-dark-800/40'
+              }`}
+            >
+              <Activity size={14} />
+              <span>{t.nav.operations}</span>
+            </button>
+          )}
 
-          <button
-            onClick={() => setActiveTab('executive')}
-            aria-current={activeTab === 'executive' ? 'page' : undefined}
-            className={`flex items-center gap-2 px-3.5 py-2.5 rounded text-left text-xs font-semibold w-full transition-all focus:outline-none focus:ring-1 focus:ring-brand-blue-500 ${
-              activeTab === 'executive'
-                ? 'bg-brand-dark-800 text-brand-blue-500 border-l-2 border-l-brand-blue-500'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-brand-dark-800/40'
-            }`}
-          >
-            <ShieldAlert size={14} />
-            <span>{t.nav.executive}</span>
-          </button>
+          {checkPermissions(userRole, 'executive') && (
+            <button
+              onClick={() => handleTabSwitch('executive')}
+              aria-current={activeTab === 'executive' ? 'page' : undefined}
+              className={`flex items-center gap-2 px-3.5 py-2.5 rounded text-left text-xs font-semibold w-full transition-all focus:outline-none focus:ring-1 focus:ring-brand-blue-500 ${
+                activeTab === 'executive'
+                  ? 'bg-brand-dark-800 text-brand-blue-500 border-l-2 border-l-brand-blue-500'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-brand-dark-800/40'
+              }`}
+            >
+              <ShieldAlert size={14} />
+              <span>{t.nav.executive}</span>
+            </button>
+          )}
 
           <div className="hidden md:block my-2 border-t border-brand-dark-700" />
 
-          <button
-            onClick={() => setActiveTab('diagnostics')}
-            aria-current={activeTab === 'diagnostics' ? 'page' : undefined}
-            className={`flex items-center gap-2 px-3.5 py-2.5 rounded text-left text-xs font-semibold w-full transition-all focus:outline-none focus:ring-1 focus:ring-brand-blue-500 md:mt-auto ${
-              activeTab === 'diagnostics'
-                ? 'bg-brand-dark-800 text-brand-blue-500 border-l-2 border-l-brand-blue-500'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-brand-dark-800/40'
-            }`}
-          >
-            <Sliders size={14} />
-            <span>{t.nav.diagnostics}</span>
-          </button>
+          {checkPermissions(userRole, 'diagnostics') && (
+            <button
+              onClick={() => handleTabSwitch('diagnostics')}
+              aria-current={activeTab === 'diagnostics' ? 'page' : undefined}
+              className={`flex items-center gap-2 px-3.5 py-2.5 rounded text-left text-xs font-semibold w-full transition-all focus:outline-none focus:ring-1 focus:ring-brand-blue-500 md:mt-auto ${
+                activeTab === 'diagnostics'
+                  ? 'bg-brand-dark-800 text-brand-blue-500 border-l-2 border-l-brand-blue-500'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-brand-dark-800/40'
+              }`}
+            >
+              <Sliders size={14} />
+              <span>{t.nav.diagnostics}</span>
+            </button>
+          )}
         </nav>
 
         {/* Console View Area */}
         <main id="main-content" className="flex-1 p-6 overflow-y-auto" tabIndex={-1}>
-          {activeTab === 'fan' && <FanDashboard />}
-          {activeTab === 'volunteer' && <VolunteerDashboard />}
-          {activeTab === 'operations' && <OperationsDashboard />}
-          {activeTab === 'executive' && <ExecutiveDashboard />}
-          {activeTab === 'diagnostics' && <DiagnosticsDashboard />}
+          {!checkPermissions(userRole, activeTab) ? (
+            <div className="bg-red-950/20 border border-red-500/30 rounded p-6 max-w-xl mx-auto my-12 text-center space-y-4">
+              <ShieldAlert className="text-red-500 w-12 h-12 mx-auto animate-bounce" />
+              <h2 className="text-lg font-bold text-red-400">Access Denied</h2>
+              <p className="text-slate-300 text-sm">
+                Your active role ({userRole}) is not authorized to view the requested control deck ({activeTab}).
+                This access attempt has been logged for security audit.
+              </p>
+              <Button variant="danger" size="sm" onClick={() => handleRoleChange('Fan')}>
+                Reset to Safe Default Dashboard
+              </Button>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'fan' && <FanDashboard />}
+              {activeTab === 'volunteer' && <VolunteerDashboard />}
+              {activeTab === 'operations' && <OperationsDashboard />}
+              {activeTab === 'executive' && <ExecutiveDashboard />}
+              {activeTab === 'diagnostics' && <DiagnosticsDashboard />}
+            </>
+          )}
         </main>
       </div>
 

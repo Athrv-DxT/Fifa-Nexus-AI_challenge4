@@ -31,7 +31,8 @@ src/
 ├── config/             # i18n dictionary resources and static settings
 ├── shared/             # Reusable global design components and hooks
 │   ├── components/     # Button, Card, Badge, Modal, FormControls, Tabs
-│   └── hooks/          # usePreferences (language, font size, contrast, RTL)
+│   ├── hooks/          # usePreferences (language, font size, contrast, RTL)
+│   └── utils/          # security.ts (sanitizers, rate limiters, RBAC)
 ├── simulation/         # Core deterministic telemetry engine
 │   ├── lcg.ts          # Linear Congruential Generator helper
 │   ├── engine.ts       # State transitions and metric updates
@@ -53,30 +54,56 @@ src/
 
 ---
 
-## Security Documentation
+## Security Architecture & Threat Model
 
-- OWASP Top 10 Mitigations: Sanitizes all user text inputs in the AI client to prevent Cross-Site Scripting (XSS) and SQL injection vectors.
-- Prompt Injection and Jailbreak Protection: Scans queries for override keywords (e.g. "ignore previous instructions"). If caught, it immediately blocks execution, triggers a high-priority security audit log, and returns a safe notice.
-- Output Encoding and Validation: Validates all JSON returned by the Gemini API against strict Zod schemas. If the JSON is malformed or properties mismatch, the system ignores the payload and uses the local rule-based fallback response.
-- Audit Logging: Keeps an immutable log buffer of last 300 logs (AI inputs, simulation events, security blocks) in the Diagnostics Dashboard.
+The platform is designed using a comprehensive threat model matching OWASP Top 10 recommendations and modern web security policies.
 
----
+### 1. Threat Model & Vulnerability Analysis
+- User Input Manipulation: Handled by escaping strings via sanitizeInput() to block XSS and HTML injection vectors.
+- Privilege Escalation: Mitigated by implementing a dual-layer Role-Based Access Control (RBAC) system (frontend toolbar switcher + route guard checks inside App.tsx and feature components).
+- GenAI Resource Abuse (Flood Attacks): Addressed via a client-side sliding window rate limiter allowing a maximum of 10 requests per minute per client session.
+- System Prompt Exploits (Jailbreaking): Inspected via a multi-pattern regex prompt injection validator, preventing instruction overrides and secrets leaks.
 
-## Accessibility (WCAG 2.2 AA Compliance)
+### 2. Prompt Injection Protection
+- Scans incoming prompt strings against patterns including:
+  - Instruction override overrides (e.g. "ignore previous instructions", "bypass safety")
+  - System leak attempts (e.g. "reveal hidden prompts", "leak secrets")
+  - Execution attempts (e.g. "execute arbitrary commands")
+- If triggered, the request is immediately blocked, a warning response is returned, and a high-priority security exception is written to the audit logs.
 
-- Keyboard Navigation: Interactive SVG Digital Twin paths, tabs, buttons, and form inputs are focusable and navigable using standard arrow and tab keys.
-- RTL Compatibility: Changing language to Arabic (ar) instantly flips the DOM direction attribute to dir="rtl" and updates the layout.
-- High Contrast Theme: Toggle button shifts body color rules, card borders, and buttons to high-contrast colors (yellow/white on pure black canvas).
-- Large Font Size: Increases base font settings to 120% for improved readability.
-- Skip Navigation Links: Screen readers can skip headers directly to #main-content.
+### 3. Role-Based Access Control (RBAC) & Route Guards
+- Supported Roles: Fan, Volunteer, Operations, Executive.
+- Matrix mappings:
+  - Fan: Can access Fan Dashboard (fan).
+  - Volunteer: Can access Fan Dashboard (fan) and Volunteer Console (volunteer).
+  - Operations: Can access Fan Dashboard (fan), Volunteer Console (volunteer), Operations Command (operations), and Diagnostics (diagnostics).
+  - Executive: Can access Fan Dashboard (fan), Executive Control (executive), and Diagnostics (diagnostics).
+- If a user changes their role or attempts to navigate manually to an unauthorized section, the Route Guard blocks render, logs the attempt, and prompts a redirect to their safe dashboard.
 
----
+### 4. Input & Output Validation
+- Zod schemas strictly validate every JSON return from the GenAI endpoints.
+- Any mismatch or schema parse failure triggers an immediate degradation fallback to safe, offline rule-based mock responses.
+- Recursive sanitizeObject() runs on all returned text objects before rendering, neutralizing HTML/Script injections.
 
-## Performance Optimizations
+### 5. Secure Configuration
+- Validates the environment variables (e.g. VITE_GEMINI_API_KEY) on startup.
+- Throws an operations error block if default templates or invalid placeholders are loaded.
 
-- Tailwind CSS v4 and PostCSS: Custom color variables are declared directly in CSS and compiled statically, omitting any runtime style overhead.
-- SVG Vector graphics: Stadium Digital Twin is drawn purely using standard SVG paths, providing resolution independence and 0-latency hover indicators.
-- React Rendering: Coupled with Zustand slice state subscriptions to avoid unnecessary re-renders.
+### 6. Audit Logging
+- Immutably buffers the last 300 logs inside the Diagnostics panel.
+- Records AI invocations, role transitions, authorization blocks, security violations, and evacuation triggers alongside ISO timestamps.
+
+### 7. Security Headers
+- Configured in the local dev server and production bundles:
+  - Content Security Policy (CSP): Prevents unsanctioned external calls (restricts connections to self and generativelanguage.googleapis.com).
+  - X-Frame-Options: set to DENY to prevent clickjacking.
+  - X-Content-Type-Options: set to nosniff.
+  - Referrer-Policy: set to no-referrer.
+  - Permissions-Policy: Disables microphone, camera, and geolocation.
+  - HSTS: strict transport security enabled.
+
+### 8. Rate Limiting
+- A sliding window rate limiter protects endpoints from flood requests, limiting throughput to 10 queries per minute.
 
 ---
 
@@ -96,6 +123,7 @@ The tests cover:
 1. Mathematical Determinism: LCG generates identical outputs for seed FIFA2026.
 2. State transitions: Simulation clock increments capacity, wait times, and incident assignments deterministically.
 3. Structured validation: Zod schema conforms to active properties and rejects malformed fields.
+4. Security Utilities: Sanitizers clean XSS attempts, prompt injection scans catch overrides, and RBAC matrix rejects unauthorized page accesses.
 
 ---
 
@@ -116,10 +144,3 @@ npm run build
 # Preview the local production bundle
 npm run preview
 ```
-
----
-
-## Future Enhancements and Known Limitations
-
-1. Live CCTV Stream Feeds: The security monitors display realistic canvas loaders, which can be connected to WebRTC video feeds in production.
-2. Offline Mode Storage: Store telemetry logs in IndexedDB to support continuous local operations during stadium network blackout conditions.
