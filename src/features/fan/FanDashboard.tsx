@@ -8,6 +8,7 @@ import { Button } from '../../shared/components/Button';
 import { Input, Select } from '../../shared/components/FormControls';
 import { Badge } from '../../shared/components/Badge';
 import { invokeAIAgent } from '../../ai/client';
+import { secureLogger } from '../../shared/utils/security';
 
 export const FanDashboard: React.FC = () => {
   const { state, addManualIncident } = useSimulationStore();
@@ -62,6 +63,7 @@ export const FanDashboard: React.FC = () => {
         }
       ]);
     } catch (err) {
+      secureLogger.error('ai', `Fan concierge assistant error: ${err instanceof Error ? err.message : String(err)}`);
       setChatMessages(prev => [...prev, { sender: 'ai', text: "Error connecting to concierge assistant." }]);
     } finally {
       setChatLoading(false);

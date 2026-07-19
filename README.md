@@ -24,6 +24,19 @@ The application follows Domain-Driven Design (DDD) principles and a feature-base
 
 ---
 
+## Enterprise Documentation Suite
+
+Detailed architectural specifications, security models, and deployment guides are available in the docs directory:
+
+- [System Architecture](file:///h:/challenge4/docs/ARCHITECTURE.md)
+- [Security Architecture & Threat Model](file:///h:/challenge4/docs/SECURITY.md)
+- [Multi-Cloud Deployment Guide](file:///h:/challenge4/docs/DEPLOYMENT.md)
+- [Testing & Quality Assurance](file:///h:/challenge4/docs/TESTING.md)
+- [GenAI Agent Architecture](file:///h:/challenge4/docs/AI_ARCHITECTURE.md)
+- [Contributing Guidelines](file:///h:/challenge4/docs/CONTRIBUTING.md)
+
+---
+
 ## Folder Structure
 
 ```
