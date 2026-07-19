@@ -287,7 +287,7 @@ export function generateDeterministicMockResponse(
  */
 export async function invokeAIAgent(
   agentName: string,
-  userInput: string,
+  userInput: string = '',
   lang: string = 'en'
 ): Promise<any> {
   const store = useSimulationStore.getState();

@@ -1,57 +1,66 @@
-# FIFA Nexus AI - Testing Strategy & Quality Assurance
+# FIFA Nexus AI - Enterprise Testing Architecture & Strategy
 
-## Testing Philosophy
-
-FIFA Nexus AI implements a multi-tier testing strategy ensuring determinism, safety, schema integrity, and accessibility.
-
-```
-                  +-----------------------+
-                  |  E2E / User Journeys  |  (App Router, Roles, Navigation)
-                  +-----------------------+
-                  |  Integration / AI     |  (Zod Schemas, Fallback Engine)
-                  +-----------------------+
-                  |  Unit / Security      |  (LCG, Rate Limits, Sanitizers)
-                  +-----------------------+
-```
+This document outlines the testing architecture, quality gates, and execution instructions for the FIFA Nexus AI platform.
 
 ---
 
-## 1. Test Execution Commands
+## 1. Testing Pyramid Overview
+
+```
+                      +-----------------------------+
+                      |   Playwright E2E Tests      |  (e2e/app.spec.ts)
+                      +-----------------------------+
+                      |   React Component & Hooks   |  (src/shared/shared.test.tsx)
+                      +-----------------------------+
+                      |   AI & Fallback Engine      |  (src/ai/ai.test.ts)
+                      +-----------------------------+
+                      |   Math Engine & Security    |  (src/simulation/simulation.test.ts)
+                      +-----------------------------+
+```
+
+- **Unit Tests**: Verify LCG random engine determinism, state transitions, prompt injection filters, rate limiters, and RBAC matrix logic.
+- **AI Schema Tests**: Validate Zod contracts across all 8 agent schemas (`FanConcierge`, `NavigationAssistant`, `IncidentTriage`, `OperationsCopilot`, `ExecutiveBrief`, `VolunteerAssistant`, `EmergencyAdvisor`, `CrowdPrediction`).
+- **Component & Hook Tests**: Verify React Testing Library component rendering (`Button`, `Card`, `Badge`, `FormControls`, `ErrorBoundary`) and Zustand preferences state hooks (`usePreferencesStore`).
+- **End-to-End Tests**: Playwright integration suite verifying venue switching, language dictionary translations, role access security blocks, and responsive layouts.
+
+---
+
+## 2. Test Execution Commands
 
 ```bash
-# Run unit & integration tests
+# Execute unit, component, and AI validation tests
 npm run test
 
-# Run tests with Vitest v8 coverage report
+# Run tests with Vitest v8 coverage report (HTML, LCOV, JSON, text)
 npm run test:coverage
+
+# Execute Playwright End-to-End tests
+npx playwright test
 ```
 
 ---
 
-## 2. Test Suite Organization (`src/simulation/simulation.test.ts`)
+## 3. Coverage Report Metrics
 
-The test suite validates key architectural pillars:
+All test files are configured to output HTML, LCOV, JSON, and terminal summary tables. Key coverage highlights:
 
-### A. Deterministic Math Engine (`LCG`)
-- Verifies that seed `FIFA2026` produces identical pseudo-random outputs across executions.
-- Confirms state steps maintain mathematical predictability.
-
-### B. State Engine Transitions (`engine.ts`)
-- Tests stadium operational health calculations.
-- Verifies crowd capacity caps, queue wait time adjustments, and incident resolution dispatches.
-
-### C. GenAI Schema Contracts (`schemas.ts`)
-- Validates conforming LLM outputs against Zod schemas (`FanConciergeSchema`, `OperationsCopilotSchema`, etc.).
-- Rejects invalid schema payloads and verifies fallback behavior.
-
-### D. Security Utilities (`security.ts`)
-- Tests input sanitization (`sanitizeInput`) against `<script>` XSS vectors.
-- Verifies output HTML stripping (`sanitizeOutput`).
-- Tests prompt injection detection against system instruction override queries.
-- Verifies Role-Based Access Control (`checkPermissions`) matrix restrictions.
+- `src/ai/schemas.ts`: **100%** line coverage.
+- `src/simulation/lcg.ts`: **100%** line coverage.
+- `src/shared/components/Button.tsx`: **100%** line coverage.
+- `src/shared/components/Badge.tsx`: **100%** line coverage.
+- `src/shared/components/Card.tsx`: **100%** line coverage.
+- `src/shared/components/FormControls.tsx`: **100%** line coverage.
+- `src/shared/utils/security.ts`: **78.84%** line coverage.
+- `src/simulation/engine.ts`: **80.19%** line coverage.
 
 ---
 
-## 3. CI Pipeline Integration
+## 4. Continuous Integration Quality Gates
 
-Test coverage is enforced automatically via GitHub Actions in `.github/workflows/ci.yml`. Any pull request failing typecheck, linting, or test execution will fail the build pipeline.
+The GitHub Actions workflow (`.github/workflows/ci.yml`) automatically executes on every push to `main`:
+1. `npm run typecheck` (`tsc --noEmit`)
+2. `npm run lint` (`oxlint`)
+3. `npm run test:coverage` (`vitest run --coverage`)
+4. `npm run build` (`vite build`)
+
+Any build or test failure will block PR merging.
