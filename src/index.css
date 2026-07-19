@@ -70,3 +70,18 @@
 .pulse-indicator {
   animation: pulse-ring 2s infinite ease-in-out;
 }
+
+/* WCAG 2.2 AA Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .pulse-indicator {
+    animation: none !important;
+  }
+}

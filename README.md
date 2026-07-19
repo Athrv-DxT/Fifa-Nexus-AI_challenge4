@@ -32,6 +32,7 @@ Detailed architectural specifications, security models, and deployment guides ar
 - [Security Architecture & Threat Model](file:///h:/challenge4/docs/SECURITY.md)
 - [Multi-Cloud Deployment Guide](file:///h:/challenge4/docs/DEPLOYMENT.md)
 - [Testing & Quality Assurance](file:///h:/challenge4/docs/TESTING.md)
+- [Accessibility Architecture & WCAG Compliance](file:///h:/challenge4/docs/ACCESSIBILITY.md)
 - [GenAI Agent Architecture](file:///h:/challenge4/docs/AI_ARCHITECTURE.md)
 - [Contributing Guidelines](file:///h:/challenge4/docs/CONTRIBUTING.md)
 
